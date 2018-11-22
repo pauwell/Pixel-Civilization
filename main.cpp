@@ -1,7 +1,7 @@
 /*
-*	Copyright (C) 2018 Paul Bernitz
+*   Copyright (C) 2018 Paul Bernitz
 *
-*	This program is free software: you can redistribute it and/or modify
+*   This program is free software: you can redistribute it and/or modify
 *   it under the terms of the GNU General Public License as published by
 *   the Free Software Foundation, either version 3 of the License, or
 *   (at your option) any later version.
@@ -14,13 +14,14 @@
 *   You should have received a copy of the GNU General Public License
 *   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
+
 #include <iostream>
 #include <string>
 #include <vector>
-#include <algorithm>
-#include <functional>
 #include <array>
 #include <random>
+#include <algorithm>
+#include <functional>
 
 #include <SFML/Graphics.hpp>
 
@@ -117,6 +118,66 @@ static sf::Vector2u random_destination(unsigned start_x, unsigned start_y, unsig
 	return destination;
 }
 
+/*------------------------------------------------------.
+| Return the recorded statistics as a formatted string. |
+`------------------------------------------------------*/
+static std::string population_statistics_to_string(
+	unsigned fps, 
+	const std::map<sf::Uint32, PopulationStats>& population_stats, 
+	const std::map<std::string, sf::Color>& global_colors
+){
+	// Get different teams.
+	const auto& red_stats = population_stats.at(global_colors.at("team-red").toInteger());
+	const auto& yellow_stats = population_stats.at(global_colors.at("team-yellow").toInteger());
+	const auto& violet_stats = population_stats.at(global_colors.at("team-violet").toInteger());
+	const auto& blue_stats = population_stats.at(global_colors.at("team-blue").toInteger());
+
+	// Count the people that are alive.
+	unsigned red_alive_total = red_stats.count_total;
+	unsigned yellow_alive_total = yellow_stats.count_total;
+	unsigned violet_alive_total = violet_stats.count_total;
+	unsigned blue_alive_total = blue_stats.count_total;
+
+	// Count the people that are diseased.
+	unsigned red_diseased_total = red_stats.count_diseased;
+	unsigned yellow_diseased_total = yellow_stats.count_diseased;
+	unsigned violet_diseased_total = violet_stats.count_diseased;
+	unsigned blue_diseased_total = blue_stats.count_diseased;
+
+	// Calculate average strength.
+	unsigned red_avg_str = red_stats.sum_strength / (red_alive_total > 0 ? red_alive_total : 1);
+	unsigned yellow_avg_str = yellow_stats.sum_strength / (yellow_alive_total > 0 ? yellow_alive_total : 1);
+	unsigned violet_avg_str = violet_stats.sum_strength / (violet_alive_total > 0 ? violet_alive_total : 1);
+	unsigned blue_avg_str = blue_stats.sum_strength / (blue_alive_total > 0 ? blue_alive_total : 1);
+
+	// Calculate average age.
+	unsigned red_avg_age = red_stats.sum_age / (red_alive_total > 0 ? red_alive_total : 1);
+	unsigned yellow_avg_age = yellow_stats.sum_age / (yellow_alive_total > 0 ? yellow_alive_total : 1);
+	unsigned violet_avg_age = violet_stats.sum_age / (violet_alive_total > 0 ? violet_alive_total : 1);
+	unsigned blue_avg_age = blue_stats.sum_age / (blue_alive_total > 0 ? blue_alive_total : 1);
+
+	// Update fps-widget.
+	return std::string{
+		"PixelCiv v0.8 ~ Fps " + std::to_string(fps) + "\n" +
+		"Red:    Alive(" + std::to_string(red_alive_total) +
+		") Sick(" + std::to_string(red_diseased_total) +
+		") AvgAge(" + std::to_string(red_avg_age) +
+		") AvgStr(" + std::to_string(red_avg_str) + ")\n" +
+		"Yellow: Alive(" + std::to_string(yellow_alive_total) +
+		") Sick(" + std::to_string(yellow_diseased_total) +
+		") AvgAge(" + std::to_string(yellow_avg_age) +
+		") AvgStr(" + std::to_string(yellow_avg_str) + ")\n" +
+		"Violet:  Alive(" + std::to_string(violet_alive_total) +
+		") Sick(" + std::to_string(violet_diseased_total) +
+		") AvgAge(" + std::to_string(violet_avg_age) +
+		") AvgStr(" + std::to_string(violet_avg_str) + ")\n" +
+		"Blue:   Alive(" + std::to_string(blue_alive_total) +
+		") Sick(" + std::to_string(blue_diseased_total) +
+		") AvgAge(" + std::to_string(blue_avg_age) +
+		") AvgStr(" + std::to_string(blue_avg_str) + ")\n"
+	};
+}
+
 /*------.
 | Main. |
 `------*/
@@ -130,7 +191,7 @@ int main()
 		20000,     // Chance of getting a disease (1 in x).
 		2,         // The maximum number of years a disease can spread.
 		3, 12,     // The minimum and maximum amount of time it takes a person to reproduce. 
-		40, 85    // The smallest and largest possible strength value on startup.
+		40, 85     // The smallest and largest possible strength value on startup.
 	};
 
 
@@ -139,10 +200,14 @@ int main()
 	ui_font.loadFromFile("_font/Consolas.ttf");
 	
 	// FPS counter.
+	sf::RectangleShape fps_widget_background{ sf::Vector2f{ 540.f, 120.f } };
+	fps_widget_background.setPosition(0.f, 600.f);
+	fps_widget_background.setFillColor(sf::Color{ 0,255,255, 140 });
+	fps_widget_background.setOutlineThickness(2.f);
+	fps_widget_background.setOutlineColor(sf::Color::Black);
 	sf::Text fps_widget{ "", ui_font, 16 };
-	//fps_widget.setst
 	fps_widget.setFillColor(sf::Color::Black);
-	fps_widget.setPosition(10.f, 232.f);
+	fps_widget.setPosition(10.f, 610.f);
 	unsigned tick_counter = 0;
 	float fps_time = 0.f;
 	
@@ -186,10 +251,12 @@ int main()
 	};
 
 	// Define starting positions for each team.
-	create_tribe(sf::Vector2i{  50,  20 }, sf::Vector2i{ 500,  95 }, global_colors.at("team-red"),    500000);
-	create_tribe(sf::Vector2i{  50,  95 }, sf::Vector2i{ 500, 150 }, global_colors.at("team-yellow"), 500000);
-	create_tribe(sf::Vector2i{ 100, 150 }, sf::Vector2i{ 500, 220 }, global_colors.at("team-violet"), 500000);
-	create_tribe(sf::Vector2i{ 100, 220 }, sf::Vector2i{ 500, 310 }, global_colors.at("team-blue"),   500000);
+	create_tribe(sf::Vector2i{ 380, 60 }, sf::Vector2i{ 400, 80 }, global_colors.at("team-red"), 50);
+	create_tribe(sf::Vector2i{ 400, 110 }, sf::Vector2i{ 420, 130 }, global_colors.at("team-blue"), 50);
+	//create_tribe(sf::Vector2i{  50,  20 }, sf::Vector2i{ 500,  95 }, global_colors.at("team-red"),    500000);
+	//create_tribe(sf::Vector2i{  50,  95 }, sf::Vector2i{ 500, 150 }, global_colors.at("team-yellow"), 500000);
+	//create_tribe(sf::Vector2i{ 100, 150 }, sf::Vector2i{ 500, 220 }, global_colors.at("team-violet"), 500000);
+	//create_tribe(sf::Vector2i{ 100, 220 }, sf::Vector2i{ 500, 310 }, global_colors.at("team-blue"),   500000);
 	
 	// Create window.
 	sf::RenderWindow window{ sf::VideoMode{ config.WindowWidth, config.WindowHeight, 32 }, "PixelCiv 0.8", sf::Style::Default };
@@ -266,7 +333,7 @@ int main()
 
 						// Increase age and check if the person is dead.
 						p.age += DELTA;
-						if (p.age >= p.strength)
+						if (p.age >= p.strength || p.age >= 85.f)
 						{
 							p = { false, false, sf::Color::White, 0.f, 0 };
 						}
@@ -378,9 +445,11 @@ int main()
 			map.texture.loadFromImage(map.image_buffer);
 	
 			// Draw to screen.
-			window.setView(map_view);
 			window.clear();
+			window.setView(map_view);
 			window.draw(map.surface);
+			window.setView(window.getDefaultView());
+			window.draw(fps_widget_background);
 			window.draw(fps_widget);
 			window.display();
 		}
@@ -388,56 +457,8 @@ int main()
 		// Late update.
 		if (fps_time >= 1.f)
 		{
-			// Get different teams.
-			const PopulationStats& red_population_stats = population_stats[global_colors.at("team-red").toInteger()];
-			const PopulationStats& yellow_population_stats = population_stats[global_colors.at("team-yellow").toInteger()];
-			const PopulationStats& violet_population_stats = population_stats[global_colors.at("team-violet").toInteger()];
-			const PopulationStats& blue_population_stats = population_stats[global_colors.at("team-blue").toInteger()];
-
-			// Count the people that are alive.
-			unsigned red_alive_total = red_population_stats.count_total;
-			unsigned yellow_alive_total = yellow_population_stats.count_total;
-			unsigned violet_alive_total = violet_population_stats.count_total;
-			unsigned blue_alive_total = blue_population_stats.count_total;
-
-			// Count the people that are diseased.
-			unsigned red_diseased_total = red_population_stats.count_diseased;
-			unsigned yellow_diseased_total = yellow_population_stats.count_diseased;
-			unsigned violet_diseased_total = violet_population_stats.count_diseased;
-			unsigned blue_diseased_total = blue_population_stats.count_diseased;
-
-			// Calculate average strength.
-			unsigned red_avg_str = red_population_stats.sum_strength / (red_alive_total > 0 ? red_alive_total : 1);
-			unsigned yellow_avg_str = yellow_population_stats.sum_strength / (yellow_alive_total > 0 ? yellow_alive_total : 1);
-			unsigned violet_avg_str = violet_population_stats.sum_strength / (violet_alive_total > 0 ? violet_alive_total : 1);
-			unsigned blue_avg_str = blue_population_stats.sum_strength / (blue_alive_total > 0 ? blue_alive_total : 1);
-
-			// Calculate average age.
-			unsigned red_avg_age = red_population_stats.sum_age / (red_alive_total > 0 ? red_alive_total : 1);
-			unsigned yellow_avg_age = yellow_population_stats.sum_age / (yellow_alive_total > 0 ? yellow_alive_total : 1);
-			unsigned violet_avg_age = violet_population_stats.sum_age / (violet_alive_total > 0 ? violet_alive_total : 1);
-			unsigned blue_avg_age = blue_population_stats.sum_age / (blue_alive_total > 0 ? blue_alive_total : 1);
-
 			// Update fps-widget.
-			fps_widget.setString(
-				"PixelCiv v0.8 ~ Fps " + std::to_string(tick_counter) + "\n" + 
-				"Red:    Alive(" + std::to_string(red_alive_total) + 
-					") Sick(" + std::to_string(red_diseased_total) + 
-					") AvgAge(" + std::to_string(red_avg_age) + 
-					") AvgStr(" + std::to_string(red_avg_str) + ")\n" +
-				"Yellow: Alive(" + std::to_string(yellow_alive_total) + 
-					") Sick(" + std::to_string(yellow_diseased_total) + 
-					") AvgAge(" + std::to_string(yellow_avg_age) + 
-					") AvgStr(" + std::to_string(yellow_avg_str) + ")\n" +
-				"Violet:  Alive(" + std::to_string(violet_alive_total) + 
-					") Sick(" + std::to_string(violet_diseased_total) + 
-					") AvgAge(" + std::to_string(violet_avg_age) + 
-					") AvgStr(" + std::to_string(violet_avg_str) + ")\n" +
-				"Blue:   Alive(" + std::to_string(blue_alive_total) + 
-					") Sick(" + std::to_string(blue_diseased_total) + 
-					") AvgAge(" + std::to_string(blue_avg_age) + 
-					") AvgStr(" + std::to_string(blue_avg_str) + ")\n"
-			);
+			fps_widget.setString(population_statistics_to_string(tick_counter, population_stats, global_colors));
 			fps_time = 0.f;
 			tick_counter = 0;
 		}
